@@ -219,10 +219,68 @@ decide({C0, C1, _C2}, Bound) ->
         true -> 2
     end.
     
-init_traitor(Generals, Traitors) -> play_traitor({1, 1}, Generals, Traitors).
+init_traitor(Generals, Traitors) -> 
+    Self = self(),
+    Loyals = Generals -- Traitors,
+    MaxTraitors = max_inadequate_traitors(length(Generals)),
+    MyTraitorIdx = length(lists:takewhile(fun (E) -> E =/= Self end, Traitors)),
+    play_traitor(1, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx).
 
-play_traitor(NextRound, Generals, Traitors) -> stub.
+play_traitor(Round, _Generals, _Loyals, _Traitors, MaxTraitors, _MyTraitorIdx)
+    when Round > MaxTraitors ->
+    whereis(?GM) ! {self(), terminating};
     
+play_traitor(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx) ->
+    case traitor_is_king(Round, Generals, Traitors) of
+        true -> play_traitor_king(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx);
+        false -> play_traitor_nonking(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx)
+    end.
+    
+traitor_is_king(Round, Generals, Traitors) ->
+    lists:member(lists:nth(Round, Generals), Traitors).
+
+play_traitor_king(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx) ->
+    sync({Round, 1}),
+    {C0, C1, _C2} = collect_all(Loyals, 1), % This 1 is dummy, cause all loyals follow protocol.
+    V = vote_no_super(C0, C1, MyTraitorIdx),
+    send_all(V, Loyals),
+    sync({Round, 2}),
+    send_all(2, Loyals),
+    sync({Round, 3}),
+    case lists:nth(Round, Generals) =:= self() of
+        true ->
+            % Confuse them anyway you like!
+            ?DEBUG("Traitor General ~w: You fools, you should never trust the King!~n", [self()]),
+            send_all(0, tl(Loyals)),
+            hd(Loyals) ! 1;
+        false -> ok
+    end,
+    play_traitor(Round + 1, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx). 
+
+play_traitor_nonking(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx) ->
+    King = lists:nth(Round, Generals),
+    Bots = lists:nthtail(MaxTraitors, Loyals -- [King]), % There may be not enough bots...
+    Rest = Loyals -- Bots,
+    sync({Round, 1}),
+    {C0, C1, _C2} = collect_all(Loyals, 1), % This 1 is dummy, cause all loyals follow protocol.
+    V1 = case C1 >= C0 of true -> 1; false -> 0 end,
+    V2 = vote_no_super(C0, C1, MyTraitorIdx),
+    send_all(V1, Bots),
+    send_all(V2, Rest),
+    sync({Round, 2}),
+    send_all(V1, Bots),
+    send_all(1 - V1, Rest),
+    sync({Round, 3}),
+    ?DEBUG("Traitor General ~w: Not my fault!~n", [self()]),
+    play_traitor(Round + 1, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx). 
+
+vote_no_super(C0, C1, Idx) ->
+    if
+        C0 > C1 andalso Idx + C1 =< C0 -> 1;
+        C1 > C0 andalso Idx + C0 =< C1 -> 0;
+        true -> Idx rem 2
+    end.
+
 %% -- Miscellaneous stuff
 max_inadequate_traitors(NumOfGenerals) ->
     (NumOfGenerals + 2) div 3 - 1.
