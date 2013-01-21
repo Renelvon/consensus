@@ -22,25 +22,27 @@
 %% -- The Game
 game() ->
     register(?GM, self()), % An impartial Game Master
+    {A1, A2, A3} = now(),
+    random:seed(A1, A2, A3),
     {NumOfGenerals, NumOfTraitors, InitValues} = parse_input(),
     Generals = create_generals(NumOfGenerals),
     {Traitors, Loyals} = assign_roles(Generals, NumOfGenerals, NumOfTraitors),
     GMRef = make_ref(), % ?GM has unforgeable identity and cannot be impersonated by a traitor
-    inform_loyal_generals(Loyals, Loyals, InitValues, GMRef),
+    inform_loyal_generals(Loyals, Generals, InitValues, GMRef),
     inform_traitor_generals(Traitors, Generals, Traitors),
     MaxTraitors = max_inadequate_traitors(NumOfGenerals),
     sync_round({1, 1}, Loyals, Traitors, MaxTraitors, GMRef),
     wait_entrants(terminating, Loyals, GMRef),
-   % ?DEBUG("Game Master: Loyals Terminated~n", []),
+    ?DEBUG("Game Master: Loyals Terminated~n", []),
     wait_entrants(terminating, Traitors),
-   % ?DEBUG("Game Master: Traitors Terminated~n", []),
+    ?DEBUG("Game Master: Traitors Terminated~n", []),
     io:format("Game Master: Protocol Terminated~n").
 
 %% -- Input Parser
 parse_input() ->
     NumOfGenerals = read_int(),
     NumOfTraitors = read_int(),
-    InitValues = [read_int() || _I <- lists:seq(1, NumOfGenerals)],
+    InitValues = [read_int() || _I <- lists:seq(1, NumOfGenerals - NumOfTraitors)],
     {NumOfGenerals, NumOfTraitors, InitValues}.
 
 read_int() -> 
@@ -91,7 +93,8 @@ sync_round(Round, Loyals, Traitors, MaxTraitors, GMRef) ->
         _ -> sync_round(NextRound, Loyals, Traitors, MaxTraitors, GMRef)
     end.
 
-wait_entrants(_Msg, []) -> ok;
+wait_entrants(_Msg, []) ->
+    ?DEBUG("All Traitors reported ~w~n", [_Msg]);
 wait_entrants(Msg, [T | Ts]) ->
     receive
         {T, Msg} ->
@@ -99,15 +102,15 @@ wait_entrants(Msg, [T | Ts]) ->
     % after clause ...
     end.
           
-wait_entrants(Msg, [], _GMRef) ->
-    ?DEBUG("All Loyals reported ~w~n", [Msg]);
+wait_entrants(_Msg, [], _GMRef) ->
+    ?DEBUG("All Loyals reported ~w~n", [_Msg]);
 wait_entrants(Msg, [L | Ls], GMRef) ->
     receive
         {L, Msg, GMRef} -> case Msg of
                 terminating ->
                     ?DEBUG("Game Master: Loyal General ~w requested termination~n", [L]);
-                {enter_round, {R, E}} ->
-                    ?DEBUG("Game Master: Loyal General ~w requested entrance to Round ~w, Phase ~w~n", [L, R, E])
+                {enter_round, {_R, _E}} ->
+                    ?DEBUG("Game Master: Loyal General ~w requested entrance to Round ~w, Phase ~w~n", [L, _R, _E])
         end
             % after clause ...
     end,
@@ -227,10 +230,11 @@ init_traitor(Generals, Traitors) ->
     play_traitor(1, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx).
 
 play_traitor(Round, _Generals, _Loyals, _Traitors, MaxTraitors, _MyTraitorIdx)
-    when Round > MaxTraitors ->
+    when Round > MaxTraitors + 1 ->
     whereis(?GM) ! {self(), terminating};
     
 play_traitor(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx) ->
+    ?DEBUG("Round: ~w~n Generals: ~w~n Traitors: ~w~n", [Round, Generals, Traitors]),
     case traitor_is_king(Round, Generals, Traitors) of
         true -> play_traitor_king(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx);
         false -> play_traitor_nonking(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx)
@@ -250,9 +254,9 @@ play_traitor_king(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx) 
     case lists:nth(Round, Generals) =:= self() of
         true ->
             % Confuse them anyway you like!
-            ?DEBUG("Traitor General ~w: You fools, you should never trust the King!~n", [self()]),
+            ?DEBUG("Traitor General ~w reporting: You fools, you should never trust the King!~n", [self()]),
             send_all(0, tl(Loyals)),
-            hd(Loyals) ! 1;
+            hd(Loyals) ! {self(), 1};
         false -> ok
     end,
     play_traitor(Round + 1, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx). 
@@ -271,7 +275,7 @@ play_traitor_nonking(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorId
     send_all(V1, Bots),
     send_all(1 - V1, Rest),
     sync({Round, 3}),
-    ?DEBUG("Traitor General ~w: Not my fault!~n", [self()]),
+    ?DEBUG("Traitor General ~w reporting: Not my fault!~n", [self()]),
     play_traitor(Round + 1, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx). 
 
 vote_no_super(C0, C1, Idx) ->
