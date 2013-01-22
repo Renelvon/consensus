@@ -269,8 +269,8 @@ play_traitor_king(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx) 
         true ->
             % Confuse them anyway you like!
             ?DEBUG("Traitor General ~w reporting: You fools, you should never trust the King!~n", [self()]),
-            send_all(0, tl(Loyals)),
-            hd(Loyals) ! {self(), 1},
+            send_all(1, tl(Loyals)),
+            hd(Loyals) ! {self(), 0},
             send_all(0, Traitors); % For stupid reasons
         false -> ok
     end,
@@ -281,18 +281,31 @@ play_traitor_king(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx) 
 
 play_traitor_nonking(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx) ->
     King = lists:nth(Round, Generals),
-    Bots = lists:nthtail(MaxTraitors, Loyals -- [King]), % There may be not enough bots...
-    Rest = Loyals -- Bots,
+    NBots = super_majority(length(Generals)) - length(Traitors),
+    Bottable = Loyals -- [King],
+    CanHazBots = min(length(Bottable), NBots), % for the protocol to work always
+    {Bots, TempRest} = lists:split(CanHazBots, Loyals -- [King]), % There may be not enough bots...
+    Rest = [King | TempRest],
+    ?DEBUG("Bots: ~w~n Rest: ~w~n T: ~w~n.", [Bots, Rest, MaxTraitors]),
     sync({Round, 1}),
     {C0, C1, _C2} = collect_all(Loyals, 1), % This 1 is dummy, cause all loyals follow protocol.
-    V1 = case C1 >= C0 of true -> 1; false -> 0 end,
-    V2 = vote_no_super(C0, C1, MyTraitorIdx),
-    send_all(V1, Bots),
-    send_all(V2, Rest),
+    ?DEBUG("Generals: ~w, t: ~w, Actual t: ~w ~n. They voted: ~w for 0, ~w for 1, ~w for 2.~n",
+           [length(Generals), MaxTraitors, length(Traitors), C0, C1, _C2]
+        ),
+    VBots = if
+        C1 >= C0 -> 1;
+        true     -> 0
+    end,
+    VRest = vote_no_super(C0, C1, MyTraitorIdx),
+    send_all(VBots, Bots),
+    send_all(VRest, Rest),
     sync({Round, 2}),
     {_D0, _D1, _D2} = collect_all(Loyals, 1), % Empty mailbox
-    send_all(V1, Bots),
-    send_all(1 - V1, Rest),
+    ?DEBUG("Generals: ~w, t: ~w, Actual t: ~w ~n. They voted: ~w for 0, ~w for 1, ~w for 2.~n",
+           [length(Generals), MaxTraitors, length(Traitors), _D0, _D1, _D2]
+        ),
+    send_all(VBots, Bots),
+    send_all(1 - VBots, Rest),
     sync({Round, 3}),
     receive
         {_King, _KingV} -> ok % Empty mailbox
@@ -310,6 +323,9 @@ vote_no_super(C0, C1, Idx) ->
 %% -- Miscellaneous stuff
 max_inadequate_traitors(NumOfGenerals) ->
     (NumOfGenerals + 2) div 3 - 1.
+
+super_majority(NumOfGenerals) ->
+    NumOfGenerals - max_inadequate_traitors(NumOfGenerals).
 
 unfold(N, F) -> unfold(N, F, []).
 
