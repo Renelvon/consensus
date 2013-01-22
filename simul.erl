@@ -29,9 +29,10 @@ game() ->
     {Traitors, Loyals} = assign_roles(Generals, NumOfGenerals, NumOfTraitors),
     GMRef = make_ref(), % ?GM has unforgeable identity and cannot be impersonated by a traitor
     inform_loyal_generals(Loyals, Generals, InitValues, GMRef),
+    ack_loyal_generals(Loyals, GMRef),
     inform_traitor_generals(Traitors, Generals, Traitors),
-    MaxTraitors = max_inadequate_traitors(NumOfGenerals),
-    sync_round({1, 1}, Loyals, Traitors, MaxTraitors, GMRef),
+    Rounds = max_inadequate_traitors(NumOfGenerals),
+    sync_round({1, 1}, Loyals, Traitors, Rounds, GMRef),
     wait_entrants(terminating, Loyals, GMRef),
     ?DEBUG("Game Master: Loyals Terminated~n", []),
     wait_entrants(terminating, Traitors),
@@ -62,9 +63,17 @@ assign_roles(Gs, NGs, NTs, Acc) ->
     assign_roles(Gs -- [G], NGs - 1, NTs - 1, [G | Acc]).
 
 inform_loyal_generals([], _Generals, [], _GMRef) -> ok;
-inform_loyal_generals([G | Gs], Generals, [I | Is], GMRef) ->
-    G ! {loyal, GMRef, Generals, I},
-    inform_loyal_generals(Gs, Generals, Is, GMRef).
+inform_loyal_generals([L | Ls], Generals, [I | Is], GMRef) ->
+    L ! {loyal, GMRef, Generals, I},
+    inform_loyal_generals(Ls, Generals, Is, GMRef).
+
+ack_loyal_generals([], _GMRef) -> ok;
+ack_loyal_generals([L | Ls], GMRef) ->
+    receive
+        {L, GMRef} -> 
+            L ! {ack, GMRef},
+            ack_loyal_generals(Ls, GMRef)
+    end.
 
 inform_traitor_generals([], _Generals, _Traitors) -> ok;
 inform_traitor_generals([T | Ts], Generals, Traitors) ->
@@ -74,7 +83,11 @@ inform_traitor_generals([T | Ts], Generals, Traitors) ->
 setup_general() ->
     receive
         {loyal, GMRef, Generals, InitValue} ->
-            init_loyal(InitValue, Generals, GMRef);
+            whereis(?GM) ! {self(), GMRef},
+            receive
+                {ack, GMRef} ->
+                    init_loyal(InitValue, Generals, GMRef)
+            end;
         {traitor, Generals, Traitors} ->
             init_traitor(Generals, Traitors)
     end.
