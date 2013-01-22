@@ -249,6 +249,7 @@ play_traitor_king(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx) 
     V = vote_no_super(C0, C1, MyTraitorIdx),
     send_all(V, Loyals),
     sync({Round, 2}),
+    {_D0, _D1, _D2} = collect_all(Loyals, 1), % Empty mailbox.
     send_all(2, Loyals),
     sync({Round, 3}),
     case lists:nth(Round, Generals) =:= self() of
@@ -256,8 +257,12 @@ play_traitor_king(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx) 
             % Confuse them anyway you like!
             ?DEBUG("Traitor General ~w reporting: You fools, you should never trust the King!~n", [self()]),
             send_all(0, tl(Loyals)),
-            hd(Loyals) ! {self(), 1};
+            hd(Loyals) ! {self(), 1},
+            send_all(0, Traitors); % For stupid reasons
         false -> ok
+    end,
+    receive
+        {_King, _KingV} -> ok
     end,
     play_traitor(Round + 1, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx). 
 
@@ -272,9 +277,13 @@ play_traitor_nonking(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorId
     send_all(V1, Bots),
     send_all(V2, Rest),
     sync({Round, 2}),
+    {_D0, _D1, _D2} = collect_all(Loyals, 1), % Empty mailbox
     send_all(V1, Bots),
     send_all(1 - V1, Rest),
     sync({Round, 3}),
+    receive
+        {_King, _KingV} -> ok % Empty mailbox
+    end,
     ?DEBUG("Traitor General ~w reporting: Not my fault!~n", [self()]),
     play_traitor(Round + 1, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx). 
 

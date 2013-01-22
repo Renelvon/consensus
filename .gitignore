@@ -1,2 +1,2 @@
-simul.beam
+*.beam
 erl_crash.dump
