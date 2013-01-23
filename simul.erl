@@ -80,8 +80,8 @@ announce(NumOfGenerals, NumOfTraitors, InitValues) ->
                 true    -> ?Dis
         end
     ]), 
-    io:format("~s Simple Majority @ ~w General(s)~n", [?GMText, majority(NumOfTraitors)]),
-    io:format("~s SUPER  Majority @ ~w General(s)~n", [?GMText, super_majority(NumOfTraitors)]).
+    io:format("~s Simple Majority @ ~w General(s)~n", [?GMText, majority(NumOfGenerals)]),
+    io:format("~s SUPER  Majority @ ~w General(s)~n", [?GMText, super_majority(NumOfGenerals)]).
 
 create_generals(N) -> unfold(N, fun () -> spawn(fun setup_general/0) end).
 
@@ -301,10 +301,15 @@ play_traitor_king(Round, Generals, Loyals, Traitors, MaxTraitors, MyTraitorIdx) 
     sync({Round, 3}),
     case lists:nth(Round, Generals) =:= self() of
         true ->
-            % Confuse them anyway you like!
             ?DEBUG("~s [~w] REPORTING: You fools, you should never trust the King!~n", [?TraitorText, self()]),
-            send_all(1, tl(Loyals)),
-            hd(Loyals) ! {self(), 0},
+            case Round =< MaxTraitors of
+                true ->
+                    % Be royal and don't fool them if it's not the last round :P
+                    send_all(1, Loyals);
+                false ->
+                    send_all(1, tl(Loyals)),
+                    hd(Loyals) ! {self(), 0}
+            end,
             send_all(0, Traitors); % For stupid reasons
         false -> ok
     end,
