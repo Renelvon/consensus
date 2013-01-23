@@ -19,16 +19,22 @@
 -define(DEBUG(A, B), ok).
 %-define(DEBUG(A, B), io:format(A, B)).
 
--define(GMText,      "\e[01;36mGM:\e[00m").
+-define(GMText,      "\e[01;30mGM:\e[00m").
 -define(LoyalText,   "\e[01;32mLG:\e[00m").
 -define(TraitorText, "\e[01;31mTG:\e[00m").
 
+-define(Dis   , "\e[01;31mdisagree.\e[00m").
+-define(C0Text, "\e[01;36magree to play Tichu! :D\e[00m").
+-define(C1Text, "\e[01;33magree to fight! :)\e[00m").
+
+%%
 %% -- The Game
 game() ->
     register(?GM, self()), % An impartial Game Master
     {A1, A2, A3} = now(),
     random:seed(A1, A2, A3),
     {NumOfGenerals, NumOfTraitors, InitValues} = parse_input(),
+    announce(NumOfGenerals, NumOfTraitors, InitValues),
     Generals = create_generals(NumOfGenerals),
     ?DEBUG("~s Spawned ~w Generals~n", [?GMText, NumOfGenerals]),
     {Traitors, Loyals} = assign_roles(Generals, NumOfGenerals, NumOfTraitors),
@@ -61,6 +67,22 @@ read_int() ->
     Int.
 
 %% -- Preparatory Phase
+announce(NumOfGenerals, NumOfTraitors, InitValues) ->
+    io:format("~s ~w Generals~n", [?GMText, NumOfGenerals]),
+    io:format("~s -> ~w Traitor Generals~n", [?GMText, NumOfTraitors]),
+    io:format("~s -> ~w Loyal   Generals~n", [?GMText, NumOfGenerals - NumOfTraitors]),
+    L = length(InitValues),
+    C0 = length(lists:filter(fun (E) -> E == 0 end, InitValues)),
+    io:format("~s Initially, Loyals ~s~n", [?GMText,
+        if
+                C0 == L -> ?C0Text;
+                C0 == 0 -> ?C1Text;
+                true    -> ?Dis
+        end
+    ]), 
+    io:format("~s Simple Majority @ ~w General(s)~n", [?GMText, majority(NumOfTraitors)]),
+    io:format("~s SUPER  Majority @ ~w General(s)~n", [?GMText, super_majority(NumOfTraitors)]).
+
 create_generals(N) -> unfold(N, fun () -> spawn(fun setup_general/0) end).
 
 assign_roles(Generals, NumOfGenerals, NumOfTraitors) ->
@@ -163,8 +185,8 @@ init_loyal(InitValue, Generals, GMRef) ->
 play_loyal(V, {R, _E}, _Generals, _NumOfGenerals, MaxTraitors, GMRef)
     when R > MaxTraitors + 1 ->
     if
-        V == 0 -> io:format("~s [~w] REPORTING: Today we fight! :(~n", [?LoyalText, self()]);
-        V == 1 -> io:format("~s [~w] REPORTING: Today we play Tichu!!! :D~n", [?LoyalText, self()])
+        V == 0 -> io:format("~s [~w] REPORTING: Today we ~s~n", [?LoyalText, self(), ?C0Text]);
+        V == 1 -> io:format("~s [~w] REPORTING: Today we ~s~n", [?LoyalText, self(), ?C1Text])
     end,
     whereis(?GM) ! {self(), terminating, GMRef};
 
