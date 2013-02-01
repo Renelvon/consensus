@@ -12,6 +12,8 @@
 
 -module(simul).
 -export([game/0]).
+-compile([native]).
+
 -define(GM, game_master).
 -define(DELAY, 5).
 
