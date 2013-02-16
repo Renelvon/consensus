@@ -1,3 +1,5 @@
-*.swp
 *.beam
+*.swp
+*.o
+simul
 erl_crash.dump

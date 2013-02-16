@@ -1,34 +1,36 @@
-CC = gcc -std=c99
-CF = -Wall -O2
+CC=gcc
+CFLAGS= -Wall -O2 -std=c99
 
-all : simul
+.PHONY: clean
 
-msgconf.o : msgconf.c
-	$(CC) $(CF) -c -o msgconf.o msgconf.c
+all: simul
 
-calcs.o : calcs.c
-	$(CC) $(CF) -c -o calcs.o calcs.c
+msgconf.o: msgconf.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
-inits.o : inits.c
-	$(CC) $(CF) -c -o inits.o inits.c
+calcs.o: calcs.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
-sync.o : sync.c
-	$(CC) $(CF) -c -o sync.o sync.c
+inits.o: inits.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
-loyal.o : loyal.c
-	$(CC) $(CF) -c -o loyal.o loyal.c
+sync.o: sync.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
-traitor.o : traitor.c
-	$(CC) $(CF) -c -o traitor.o traitor.c
+loyal.o: loyal.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
-ioconf.o : ioconf.c
-	$(CC) $(CF) -c -o ioconf.o ioconf.c
+traitor.o: traitor.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
-simul.o : simul.c
-	$(CC) $(CF) -c -o simul.o simul.c
+ioconf.o: ioconf.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
-simul : msgconf.o calcs.o inits.o sync.o loyal.o traitor.o ioconf.o simul.o
-	$(CC) -o simul msgconf.o calcs.o inits.o sync.o loyal.o traitor.o ioconf.o simul.o
+simul.o: simul.c
+	$(CC) $(CFLAGS) -c -o $@ $^
 
-clean :
-	rm -f *.o simul
+simul: msgconf.o calcs.o inits.o sync.o loyal.o traitor.o ioconf.o simul.o
+	$(CC) -o $@ $^
+
+clean:
+	$(RM) *.o simul
