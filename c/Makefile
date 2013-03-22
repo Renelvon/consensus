@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS= -Wall -O2 -std=c99
 
-.PHONY: clean
+.PHONY: all clean distclean
 
 all: simul
 
@@ -33,4 +33,7 @@ simul: msgconf.o calcs.o inits.o sync.o loyal.o traitor.o ioconf.o simul.o
 	$(CC) -o $@ $^
 
 clean:
-	$(RM) *.o simul
+	$(RM) *.o
+
+distclean: clean
+	$(RM) simul

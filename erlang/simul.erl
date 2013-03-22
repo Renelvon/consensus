@@ -4,7 +4,7 @@
 %%           "Towards Optimal Distributed Consensus, FoCS, 1989"
 %%           by <Piotr Berman, Juan A. Garay, Kenneth J. Perry>
 %% ---
-%% Nick Korasidis    <renelvon@?GMail.com>
+%% Nick Korasidis    <renelvon@gmail.com>
 %% Panagiotis Aronis <panaro32@hotmail.com>
 %% ---
 %% Version: 1.1.42
